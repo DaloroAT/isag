@@ -30,7 +30,8 @@ your machine safe outside it. You get:
 
 - Linux host with Docker.
 - GPU mode needs the NVIDIA Container Toolkit.
-- macOS/Windows native aren't supported; WSL2 works.
+- Tested on Linux and WSL2. macOS (Docker Desktop / Rancher Desktop) and
+  native Windows Docker should work but are untested.
 
 ## Try it
 

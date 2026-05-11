@@ -31,9 +31,10 @@ _config_opt = click.option(
 def _user_cache_root() -> Path:
     """User cache root for sandbox artifacts.
 
-    Note: isag on native Windows isn't supported (iptables, CAP_NET_ADMIN,
-    and docker socket bind mounts don't work outside Linux); the Windows
-    branch is for completeness. WSL2 reports as `linux` and uses the XDG path.
+    Linux and WSL2 (which reports as `linux` and uses the XDG path) are the
+    tested paths. The darwin/win32 branches are best-effort: Docker
+    Desktop / Rancher Desktop on macOS and native-Windows Docker should
+    work but aren't exercised in CI.
     """
     if sys.platform.startswith("linux"):
         base = os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")

@@ -2,12 +2,38 @@
 name = "isag"
 version = "0.1.0"
 description = "Isag — Isolated Agent. Strict containerized sandboxes for coding agents."
+readme = "README.md"
 requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+    {name = "Aleksei Tarasov", email = "aleksei.v.tarasov@gmail.com"},
+]
+keywords = ["sandbox", "docker", "agent", "security", "containerization", "ai", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Software Development",
+]
 dependencies = [
     "pydantic>=2.6",
     "click>=8.1",
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/DaloroAT/isag"
+Repository = "https://github.com/DaloroAT/isag"
+Issues = "https://github.com/DaloroAT/isag/issues"
 
 [project.scripts]
 isag = "isag.main:cli"

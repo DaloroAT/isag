@@ -132,6 +132,32 @@ def render_compose(
             "target": "/etc/isag/allowed-domains.txt",
             "read_only": True,
         })
+
+    # SSH key material — generated per slot, mounted read-only.
+    # authorized_keys lands at a neutral path because sshd's StrictModes
+    # rejects a user-home `.ssh` that was auto-created by Docker as root;
+    # the entrypoint copies it into the user's home with correct ownership
+    # before sshd starts.
+    ssh_src = (Path(outdir) / "ssh").resolve()
+    volumes.append({
+        "type": "bind",
+        "source": str(ssh_src / "id_ed25519.pub"),
+        "target": "/etc/isag/authorized_keys",
+        "read_only": True,
+    })
+    volumes.append({
+        "type": "bind",
+        "source": str(ssh_src / "ssh_host_ed25519_key"),
+        "target": "/etc/ssh/host_keys/ssh_host_ed25519_key",
+        "read_only": True,
+    })
+    volumes.append({
+        "type": "bind",
+        "source": str(ssh_src / "ssh_host_ed25519_key.pub"),
+        "target": "/etc/ssh/host_keys/ssh_host_ed25519_key.pub",
+        "read_only": True,
+    })
+
     volumes.extend(_volume_entry(m, config) for m in (config.mounts or []))
 
     # If the source yaml lives under the project tree, overlay it as

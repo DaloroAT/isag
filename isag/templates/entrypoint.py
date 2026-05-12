@@ -29,6 +29,16 @@ chown "$RUN_AS_USER:$RUN_AS_USER" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
 
+# Install the user's SSH authorized_keys with the ownership and mode that
+# sshd's StrictModes requires — a direct bind mount can't satisfy this because
+# Docker auto-creates the parent .ssh as root. Start sshd on 127.0.0.1:22
+# before the iptables seal; the seal's -i lo ACCEPT keeps it reachable from
+# `docker exec` (used by `isag ssh` on the host).
+install -d -m 700 -o "$RUN_AS_USER" -g "$RUN_AS_USER" "/home/$RUN_AS_USER/.ssh"
+install -m 600 -o "$RUN_AS_USER" -g "$RUN_AS_USER" \
+    /etc/isag/authorized_keys "/home/$RUN_AS_USER/.ssh/authorized_keys"
+/usr/sbin/sshd
+
 read -r -a UPSTREAMS <<< "$ISAG_RESOLVERS"
 [[ ${#UPSTREAMS[@]} -gt 0 ]] || { echo "entrypoint: ISAG_RESOLVERS is empty" >&2; exit 1; }
 
@@ -146,6 +156,13 @@ set -Eeuo pipefail
 chown "$RUN_AS_USER:$RUN_AS_USER" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
+
+# Install authorized_keys with StrictModes-compatible ownership/mode and
+# launch sshd on 127.0.0.1:22 for host-side `isag ssh`.
+install -d -m 700 -o "$RUN_AS_USER" -g "$RUN_AS_USER" "/home/$RUN_AS_USER/.ssh"
+install -m 600 -o "$RUN_AS_USER" -g "$RUN_AS_USER" \
+    /etc/isag/authorized_keys "/home/$RUN_AS_USER/.ssh/authorized_keys"
+/usr/sbin/sshd
 
 echo "entrypoint: limit_network is null — outbound traffic is unrestricted"
 echo "entrypoint: dropping to $RUN_AS_USER"

@@ -19,8 +19,25 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 RUN apt-get update && apt-get install -y --no-install-recommends \\
         ca-certificates curl gnupg software-properties-common \\
         dnsutils \\
-        git gosu iproute2 ipset iptables jq ripgrep wget \\
-    && rm -rf /var/lib/apt/lists/*
+        git gosu iproute2 ipset iptables jq openssh-server ripgrep socat wget \\
+    && rm -rf /var/lib/apt/lists/* \\
+    && mkdir -p /var/run/sshd /etc/ssh/host_keys
+
+# sshd drop-in: loopback only, key-only auth, ed25519 host key bind-mounted
+# in at runtime. `AllowTcpForwarding local` permits -L (forward container
+# services to host) but refuses -R, keeping the "container can't reach
+# back to host" invariant intact.
+RUN printf '%s\\n' \\
+        'ListenAddress 127.0.0.1' \\
+        'PasswordAuthentication no' \\
+        'PermitRootLogin no' \\
+        'PubkeyAuthentication yes' \\
+        'UsePAM no' \\
+        'PrintMotd no' \\
+        'HostKey /etc/ssh/host_keys/ssh_host_ed25519_key' \\
+        'AllowTcpForwarding local' \\
+        'GatewayPorts no' \\
+        > /etc/ssh/sshd_config.d/10-isag.conf
 
 # Node.js.
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \\

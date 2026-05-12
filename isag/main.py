@@ -1,9 +1,10 @@
-"""Click CLI: init / run."""
+"""Click CLI: init / run / ssh."""
 from __future__ import annotations
 
 import hashlib
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,7 @@ from isag.templates.dockerfile import render_dockerfile, render_dockerignore
 from isag.templates.entrypoint import render_entrypoint
 from isag.models import SandboxConfig, to_user_path
 from isag.runner import build as compose_build, run as compose_run
+from isag.ssh_keys import ensure_keypair
 from isag.templates.config import starter_template
 from isag.utils import yaml_id
 
@@ -131,10 +133,21 @@ def _ensure_host_dirs(cfg: SandboxConfig) -> None:
         p.mkdir(parents=True, exist_ok=True)
 
 
+def _ssh_dir(outdir: Path) -> Path:
+    """Per-slot directory holding the user keypair (id_ed25519[.pub]) and
+    the sshd host keypair (ssh_host_ed25519_key[.pub]). Persists across
+    rebuilds so PyCharm never sees a host-key-changed warning."""
+    return outdir / "ssh"
+
+
 def _materialize(cfg: SandboxConfig, yaml_path: Path) -> Path:
     outdir = _cache_dir_for(yaml_path)
     outdir.mkdir(parents=True, exist_ok=True)
     _ensure_host_dirs(cfg)
+
+    ssh_dir = _ssh_dir(outdir)
+    ensure_keypair(ssh_dir / "id_ed25519")
+    ensure_keypair(ssh_dir / "ssh_host_ed25519_key")
 
     (outdir / "Dockerfile").write_text(render_dockerfile(cfg))
     (outdir / ".dockerignore").write_text(render_dockerignore())
@@ -232,6 +245,71 @@ def run(config_path: Path, build_only: bool):
     if build_only:
         sys.exit(compose_build(compose))
     sys.exit(compose_run(compose, cfg.container.name, rebuild=True))
+
+
+def _container_running(name: str) -> bool:
+    """True iff Docker reports `name` as a running container."""
+    result = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", name],
+        capture_output=True, text=True,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def _proxy_command(container_name: str) -> str:
+    """ssh ProxyCommand that pipes SSH transport over `docker exec` stdio.
+
+    socat inside the container connects to sshd on the container's loopback;
+    its stdio is forwarded back to the host's ssh client through the Docker
+    daemon socket — never traverses the container's network namespace.
+    """
+    return f"docker exec -i {container_name} socat - TCP:localhost:22"
+
+
+@cli.command(context_settings={"ignore_unknown_options": True})
+@_config_opt
+@click.argument("ssh_args", nargs=-1, type=click.UNPROCESSED)
+def ssh(config_path: Path, ssh_args: tuple[str, ...]):
+    """SSH into the running sandbox.
+
+    No published port: SSH is tunneled via `docker exec` stdio. Requires the
+    sandbox to be running (`isag run` in another terminal).
+
+    \b
+    Examples:
+        isag ssh                                  # open a shell
+        isag ssh -L 8080:localhost:8080 -N        # forward container:8080 → host:8080
+        isag ssh -L 2222:localhost:22 -N          # publish sshd at host:2222 for PyCharm
+
+    Extra arguments are forwarded to `ssh` as options (placed before the
+    target host).
+    """
+    cfg = _load(config_path)
+    container_name = cfg.container.name
+    if not _container_running(container_name):
+        raise click.ClickException(
+            f"Container {container_name!r} isn't running. "
+            f"Start it with `isag run` in another terminal."
+        )
+
+    key_path = _ssh_dir(_cache_dir_for(config_path)) / "id_ed25519"
+    if not key_path.exists():
+        raise click.ClickException(
+            f"SSH key not found at {key_path}. Run `isag run` once to "
+            f"materialize artifacts (the keypair is generated then)."
+        )
+
+    ssh_cmd = [
+        "ssh",
+        "-i", str(key_path),
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "UserKnownHostsFile=/dev/null",
+        "-o", "LogLevel=ERROR",
+        "-o", f"ProxyCommand={_proxy_command(container_name)}",
+        *ssh_args,
+        f"{cfg.container.user}@isag",
+    ]
+    os.execvp("ssh", ssh_cmd)
 
 
 if __name__ == "__main__":

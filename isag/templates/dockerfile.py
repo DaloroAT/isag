@@ -72,11 +72,15 @@ RUN npm install -g ${{AGENT_PACKAGE}}@${{AGENT_CLI_VERSION}} \\
     && rm /tmp/agent-version.json
 
 # Runtime user. Free UID 1000 first (ubuntu base images claim it).
+# -p '*' sets the shadow password to a literal '*' — still unloginable via
+# password (not a valid hash), but not "locked". useradd's default is '!',
+# which sshd's allowed_user() rejects as "account is locked" before it ever
+# checks the pubkey, regardless of UsePAM/PubkeyAuthentication settings.
 ARG USER_NAME
 ENV RUN_AS_USER=${{USER_NAME}}
 RUN userdel -r ubuntu 2>/dev/null || true; \\
     groupdel ubuntu 2>/dev/null || true; \\
-    useradd --create-home --uid 1000 --shell /bin/bash ${{USER_NAME}}
+    useradd --create-home --uid 1000 --shell /bin/bash -p '*' ${{USER_NAME}}
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

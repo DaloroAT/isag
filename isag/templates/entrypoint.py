@@ -35,11 +35,15 @@ chown "$RUN_AS_USER:$RUN_AS_USER" \
 # no stale in-container copy. Start sshd before the iptables seal; the
 # seal's -i lo ACCEPT keeps it reachable from `docker exec` (used by
 # `isag ssh` on the host).
-# -e: log to stderr instead of syslog. No syslog daemon runs in the
-# container, so without this sshd's "Failed publickey" / StrictModes-reject
-# lines are silently dropped, leaving the host-side ssh client's
-# "Permission denied (publickey)" undiagnosable.
-/usr/sbin/sshd -e
+# -D -e &: foreground mode logging to stderr, backgrounded by the shell.
+# Plain `sshd -e` daemonizes, and OpenSSH closes 0/1/2 during daemonization
+# — so "-e" would log to a closed fd and every "Failed publickey" /
+# StrictModes-reject line would vanish, leaving auth failures undiagnosable.
+# Stderr is captured to a file (not the container's stderr) to keep the
+# agent's terminal clean from sshd's per-connection chatter at LogLevel
+# VERBOSE; `docker exec <c> cat /var/log/isag-sshd.log` recovers it when
+# debugging an auth failure.
+/usr/sbin/sshd -D -e 2>/var/log/isag-sshd.log &
 
 read -r -a UPSTREAMS <<< "$ISAG_RESOLVERS"
 [[ ${#UPSTREAMS[@]} -gt 0 ]] || { echo "entrypoint: ISAG_RESOLVERS is empty" >&2; exit 1; }
@@ -161,8 +165,11 @@ chown "$RUN_AS_USER:$RUN_AS_USER" \
 
 # sshd reads /etc/isag/authorized_keys directly (AuthorizedKeysFile in the
 # sshd drop-in) — the bind mount is the live source. Launch on 127.0.0.1:22
-# for host-side `isag ssh`. -e: log to stderr (no syslog in container).
-/usr/sbin/sshd -e
+# for host-side `isag ssh`. -D -e &: foreground + log to stderr, backgrounded
+# by the shell. Plain `sshd -e` daemonizes and closes 0/1/2, swallowing auth
+# failure logs. Stderr is captured to a file so the agent's terminal stays
+# clean; `docker exec <c> cat /var/log/isag-sshd.log` recovers it on demand.
+/usr/sbin/sshd -D -e 2>/var/log/isag-sshd.log &
 
 echo "entrypoint: limit_network is null — outbound traffic is unrestricted"
 echo "entrypoint: dropping to $RUN_AS_USER"

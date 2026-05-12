@@ -133,11 +133,13 @@ def render_compose(
             "read_only": True,
         })
 
-    # SSH key material — generated per slot, mounted read-only.
-    # authorized_keys lands at a neutral path because sshd's StrictModes
-    # rejects a user-home `.ssh` that was auto-created by Docker as root;
-    # the entrypoint copies it into the user's home with correct ownership
-    # before sshd starts.
+    # SSH key material — generated per slot, mounted read-only. The user
+    # public key lands at a neutral path because sshd's StrictModes rejects
+    # a user-home `.ssh` auto-created by Docker as root; the entrypoint
+    # copies it into the user's home with correct ownership before sshd
+    # starts. The user private key stays on host (never enters the
+    # container — that's the trust boundary). The host public key isn't
+    # mounted because sshd derives it from the private key in-memory.
     ssh_src = (Path(outdir) / "ssh").resolve()
     volumes.append({
         "type": "bind",
@@ -149,12 +151,6 @@ def render_compose(
         "type": "bind",
         "source": str(ssh_src / "ssh_host_ed25519_key"),
         "target": "/etc/ssh/host_keys/ssh_host_ed25519_key",
-        "read_only": True,
-    })
-    volumes.append({
-        "type": "bind",
-        "source": str(ssh_src / "ssh_host_ed25519_key.pub"),
-        "target": "/etc/ssh/host_keys/ssh_host_ed25519_key.pub",
         "read_only": True,
     })
 
@@ -215,7 +211,6 @@ def render_compose(
             },
         },
         "image": f"{config.container.name}:{yaml_id(yaml_path)}",
-        "container_name": config.container.name,
         "init": True,
         "tty": True,
         "stdin_open": True,

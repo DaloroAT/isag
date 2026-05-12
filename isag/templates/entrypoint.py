@@ -29,15 +29,17 @@ chown "$RUN_AS_USER:$RUN_AS_USER" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
 
-# Install the user's SSH authorized_keys with the ownership and mode that
-# sshd's StrictModes requires — a direct bind mount can't satisfy this because
-# Docker auto-creates the parent .ssh as root. Start sshd on 127.0.0.1:22
-# before the iptables seal; the seal's -i lo ACCEPT keeps it reachable from
-# `docker exec` (used by `isag ssh` on the host).
-install -d -m 700 -o "$RUN_AS_USER" -g "$RUN_AS_USER" "/home/$RUN_AS_USER/.ssh"
-install -m 600 -o "$RUN_AS_USER" -g "$RUN_AS_USER" \
-    /etc/isag/authorized_keys "/home/$RUN_AS_USER/.ssh/authorized_keys"
-/usr/sbin/sshd
+# sshd reads /etc/isag/authorized_keys directly (AuthorizedKeysFile in the
+# sshd drop-in), so the host's id_ed25519.pub bind mount is the live source
+# of truth — regenerating the keypair on host immediately takes effect with
+# no stale in-container copy. Start sshd before the iptables seal; the
+# seal's -i lo ACCEPT keeps it reachable from `docker exec` (used by
+# `isag ssh` on the host).
+# -e: log to stderr instead of syslog. No syslog daemon runs in the
+# container, so without this sshd's "Failed publickey" / StrictModes-reject
+# lines are silently dropped, leaving the host-side ssh client's
+# "Permission denied (publickey)" undiagnosable.
+/usr/sbin/sshd -e
 
 read -r -a UPSTREAMS <<< "$ISAG_RESOLVERS"
 [[ ${#UPSTREAMS[@]} -gt 0 ]] || { echo "entrypoint: ISAG_RESOLVERS is empty" >&2; exit 1; }
@@ -157,12 +159,10 @@ chown "$RUN_AS_USER:$RUN_AS_USER" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
 
-# Install authorized_keys with StrictModes-compatible ownership/mode and
-# launch sshd on 127.0.0.1:22 for host-side `isag ssh`.
-install -d -m 700 -o "$RUN_AS_USER" -g "$RUN_AS_USER" "/home/$RUN_AS_USER/.ssh"
-install -m 600 -o "$RUN_AS_USER" -g "$RUN_AS_USER" \
-    /etc/isag/authorized_keys "/home/$RUN_AS_USER/.ssh/authorized_keys"
-/usr/sbin/sshd
+# sshd reads /etc/isag/authorized_keys directly (AuthorizedKeysFile in the
+# sshd drop-in) — the bind mount is the live source. Launch on 127.0.0.1:22
+# for host-side `isag ssh`. -e: log to stderr (no syslog in container).
+/usr/sbin/sshd -e
 
 echo "entrypoint: limit_network is null — outbound traffic is unrestricted"
 echo "entrypoint: dropping to $RUN_AS_USER"

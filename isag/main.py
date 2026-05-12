@@ -247,13 +247,22 @@ def run(config_path: Path, build_only: bool):
     sys.exit(compose_run(compose, cfg.container.name, rebuild=True))
 
 
-def _container_running(name: str) -> bool:
-    """True iff Docker reports `name` as a running container."""
+def _running_containers(compose_file: Path, service: str) -> list[str]:
+    """Running container names for `service` in this compose project.
+
+    `compose run` ignores `container_name` and creates a fresh container
+    per invocation (`<project>-<service>-run-<hash>`), so we ask compose
+    rather than guessing the name. Multiple results are legitimate: two
+    `isag run` terminals → two running containers for one service.
+    """
     result = subprocess.run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", name],
+        ["docker", "compose", "-f", str(compose_file), "ps",
+         "--status", "running", "--format", "{{.Name}}", service],
         capture_output=True, text=True,
     )
-    return result.returncode == 0 and result.stdout.strip() == "true"
+    if result.returncode != 0:
+        return []
+    return [n.strip() for n in result.stdout.splitlines() if n.strip()]
 
 
 def _proxy_command(container_name: str) -> str:
@@ -268,8 +277,14 @@ def _proxy_command(container_name: str) -> str:
 
 @cli.command(context_settings={"ignore_unknown_options": True})
 @_config_opt
+@click.option(
+    "--container", "container_arg",
+    type=str, default=None,
+    help="Exact container name to attach to. Required when more than one "
+         "sandbox container is running for this slot.",
+)
 @click.argument("ssh_args", nargs=-1, type=click.UNPROCESSED)
-def ssh(config_path: Path, ssh_args: tuple[str, ...]):
+def ssh(config_path: Path, container_arg: str | None, ssh_args: tuple[str, ...]):
     """SSH into the running sandbox.
 
     No published port: SSH is tunneled via `docker exec` stdio. Requires the
@@ -285,14 +300,37 @@ def ssh(config_path: Path, ssh_args: tuple[str, ...]):
     target host).
     """
     cfg = _load(config_path)
-    container_name = cfg.container.name
-    if not _container_running(container_name):
+    cache_dir = _cache_dir_for(config_path)
+    compose_file = cache_dir / "docker-compose.yaml"
+    if not compose_file.exists():
         raise click.ClickException(
-            f"Container {container_name!r} isn't running. "
-            f"Start it with `isag run` in another terminal."
+            f"No artifacts at {cache_dir}. Run `isag run` once first."
         )
 
-    key_path = _ssh_dir(_cache_dir_for(config_path)) / "id_ed25519"
+    service = cfg.container.name
+    running = _running_containers(compose_file, service)
+    if container_arg is not None:
+        if container_arg not in running:
+            raise click.ClickException(
+                f"Container {container_arg!r} is not running for this slot. "
+                f"Running: {running or 'none'}"
+            )
+        container_name = container_arg
+    elif not running:
+        raise click.ClickException(
+            f"No running container for service {service!r}. "
+            f"Start it with `isag run` in another terminal."
+        )
+    elif len(running) > 1:
+        listing = "\n  ".join(running)
+        raise click.ClickException(
+            f"Multiple running containers for service {service!r}; "
+            f"pass --container <name> to choose:\n  {listing}"
+        )
+    else:
+        container_name = running[0]
+
+    key_path = _ssh_dir(cache_dir) / "id_ed25519"
     if not key_path.exists():
         raise click.ClickException(
             f"SSH key not found at {key_path}. Run `isag run` once to "
@@ -302,12 +340,16 @@ def ssh(config_path: Path, ssh_args: tuple[str, ...]):
     ssh_cmd = [
         "ssh",
         "-i", str(key_path),
+        # Without this, ssh also offers every key in the agent and the
+        # default identity files in ~/.ssh; on a developer host with many
+        # keys, sshd's MaxAuthTries cap (6) trips before the -i key is tried.
+        "-o", "IdentitiesOnly=yes",
         "-o", "StrictHostKeyChecking=no",
         "-o", "UserKnownHostsFile=/dev/null",
         "-o", "LogLevel=ERROR",
         "-o", f"ProxyCommand={_proxy_command(container_name)}",
         *ssh_args,
-        f"{cfg.container.user}@isag",
+        f"{cfg.container.user}@{cfg.container.user}",
     ]
     os.execvp("ssh", ssh_cmd)
 

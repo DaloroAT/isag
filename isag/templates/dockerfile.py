@@ -35,8 +35,10 @@ RUN printf '%s\\n' \\
         'UsePAM no' \\
         'PrintMotd no' \\
         'HostKey /etc/ssh/host_keys/ssh_host_ed25519_key' \\
+        'AuthorizedKeysFile /etc/isag/authorized_keys' \\
         'AllowTcpForwarding local' \\
         'GatewayPorts no' \\
+        'LogLevel VERBOSE' \\
         > /etc/ssh/sshd_config.d/10-isag.conf
 
 # Node.js.

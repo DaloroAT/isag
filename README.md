@@ -34,15 +34,24 @@ your machine safe outside it. You get:
   native Windows Docker should work but are untested.
 
 ## Try it
-
+Install:
 ```bash
-pip install -e .
+pip install isag
+```
+
+Run:
+```bash
 isag init
 isag run
 ```
 
 You're inside the agent CLI now, in a container that can reach github.com,
 pypi.org, npm, and the vendor's API — and nothing else.
+
+Grant access to SSH or Jupyter on the host machine:
+```bash
+isag ssh -L 2222:localhost:22 -L 8888:localhost:8888
+```
 
 ## The config file
 

@@ -48,15 +48,20 @@ isag run
 You're inside the agent CLI now, in a container that can reach github.com,
 pypi.org, npm, and the vendor's API — and nothing else.
 
-Grant access to SSH or Jupyter on the host machine:
+Expose a container service on the host's loopback. E.g., reach the container's SSH or Jupyter from your host (useful for IDEs and browsers):
 ```bash
 isag ssh -L 2222:localhost:22 -L 8888:localhost:8888
 ```
 
+Expose a host service to the container. E.g., give the container access to the host's `adb` server, and through it any 
+devices the host can reach (USB, network, or via VPN):
+```bash
+isag ssh -R 5037:localhost:5037
+```
+
 ## The config file
 
-`isag init` writes a starter `isag.yaml`. The lines you'll *actually*
-touch:
+`isag init` writes a starter `isag.yaml`. The lines you'll touch:
 
 ```yaml
 project: ~/code/my-project:/workspace/project:rw   # use :ro for analysis-only runs

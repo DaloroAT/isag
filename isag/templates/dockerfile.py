@@ -24,9 +24,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \\
     && mkdir -p /var/run/sshd /etc/ssh/host_keys
 
 # sshd drop-in: loopback only, key-only auth, ed25519 host key bind-mounted
-# in at runtime. `AllowTcpForwarding local` permits -L (forward container
-# services to host) but refuses -R, keeping the "container can't reach
-# back to host" invariant intact.
+# in at runtime. `AllowTcpForwarding yes` permits both -L (forward container
+# services to host) and -R (forward host services into the container's
+# loopback) so the host-side developer can expose things like an adb server
+# or DB proxy without disabling the network firewall. `GatewayPorts no`
+# keeps -R listeners bound to 127.0.0.1, so nothing leaks onto the
+# container's external interfaces.
 RUN printf '%s\\n' \\
         'ListenAddress 127.0.0.1' \\
         'PasswordAuthentication no' \\
@@ -36,7 +39,7 @@ RUN printf '%s\\n' \\
         'PrintMotd no' \\
         'HostKey /etc/ssh/host_keys/ssh_host_ed25519_key' \\
         'AuthorizedKeysFile /etc/isag/authorized_keys' \\
-        'AllowTcpForwarding local' \\
+        'AllowTcpForwarding yes' \\
         'GatewayPorts no' \\
         'LogLevel VERBOSE' \\
         > /etc/ssh/sshd_config.d/10-isag.conf

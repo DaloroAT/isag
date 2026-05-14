@@ -94,6 +94,7 @@ entry, the corresponding container path is overlaid with an empty mount.
 - Both absolute and relative paths on the host are permitted for all fields. If a field path is 
 relative, it is resolved relative to the project host path. If the project host path is also relative, it is first 
 resolved relative to the YAML file path.
+- Command `isag run` displays the cache directory. Open it to view the files and commands used to run the project.
 
 ## What it doesn't protect
 

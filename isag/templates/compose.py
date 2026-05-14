@@ -32,6 +32,17 @@ def _volume_entry(m: Mount, cfg: SandboxConfig) -> dict:
     return entry
 
 
+def _project_volume_entry(cfg: SandboxConfig) -> dict:
+    entry: dict = {
+        "type": "bind",
+        "source": str(cfg.project_root),
+        "target": str(cfg.project.container),
+    }
+    if cfg.project.mode == "ro":
+        entry["read_only"] = True
+    return entry
+
+
 def _resolve_masks(cfg: SandboxConfig) -> list[dict]:
     """Translate `exclude` host paths into mask volume entries.
 
@@ -113,7 +124,7 @@ def render_compose(
     vendor_home_source = config.resolve_path(config.agent.host_home) / vendor_segment
     vendor_home_target = f"{config.container.home}/{vendor_segment}"
 
-    volumes: list[dict] = [_volume_entry(config.project, config)]
+    volumes: list[dict] = [_project_volume_entry(config)]
     volumes.append({
         "type": "bind",
         "source": str(vendor_home_source),

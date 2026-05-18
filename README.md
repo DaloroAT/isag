@@ -72,8 +72,6 @@ container:
   python: 3.14                                     # container system-wide Python
   image: ubuntu24.04                               # or e.g. nvidia/cuda:12.8.1-runtime-ubuntu24.04 if gpu:true
   gpu: false                                       # true for CUDA + NVIDIA toolkit
-  devices: null                                    # or e.g. [/dev/kvm:/dev/kvm, /dev/video0:/dev/video0:rwm]
-  group_add: null                                  # e.g. ["992"] for /dev/dri render-node access
   host_cache_dir: ~/isag-cache                     # mounting pip, npm, and other caches          
 limit_network:
   domains:                                         # everything else is blocked
@@ -91,12 +89,6 @@ exclude:                                           # hide paths inside any mount
 
 - Set `limit_network: null` to turn the firewall off entirely. Useful on
 trusted networks; not the default for a reason.
-- Set `container.devices` to a list of Docker device mappings to expose host
-devices inside the container; keep it as `null` to expose none.
-- Set `container.group_add` to supplementary host group IDs/names needed by
-exposed devices. For Intel iGPU/OpenVINO, use `/dev/dri:/dev/dri` in
-`container.devices` and the host render GID from
-`stat -c "%g" /dev/dri/renderD128` in `container.group_add`.
 - Excluded paths are host paths; if they fall under `project` or any `mounts`
 entry, the corresponding container path is overlaid with an empty mount. 
 - Both absolute and relative paths on the host are permitted for all fields. If a field path is 

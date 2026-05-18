@@ -225,6 +225,7 @@ class ContainerConfig(BaseModel):
     extra_packages: list[str]
     gpu: bool
     devices: list[DeviceMapping] | None
+    group_add: list[str] | None = None
     external_networks: list[str]
 
     @field_validator("name")
@@ -270,6 +271,34 @@ class ContainerConfig(BaseModel):
                     f"container.external_networks: duplicate entry {name!r}"
                 )
             seen.add(name)
+        return v
+
+    @field_validator("group_add", mode="before")
+    @classmethod
+    def _stringify_group_add(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, list):
+            return [str(item) for item in v]
+        return v
+
+    @field_validator("group_add")
+    @classmethod
+    def _validate_group_add(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        pat = re.compile(r"^(?:[0-9]+|[a-z_][a-z0-9_-]{0,31})$")
+        seen: set[str] = set()
+        for group in v:
+            if not pat.fullmatch(group):
+                raise ValueError(
+                    f"container.group_add: invalid group or GID {group!r}"
+                )
+            if group in seen:
+                raise ValueError(
+                    f"container.group_add: duplicate entry {group!r}"
+                )
+            seen.add(group)
         return v
 
     @field_validator("python")

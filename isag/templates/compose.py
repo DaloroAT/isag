@@ -241,6 +241,9 @@ def render_compose(
             for device in config.container.devices
         ]
 
+    if config.container.group_add:
+        service["group_add"] = list(config.container.group_add)
+
     if config.container.external_networks:
         # Declaring `networks:` on a service stops compose's auto-attach to
         # the project default network. Append "default" so cross-service

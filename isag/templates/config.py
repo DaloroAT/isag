@@ -111,6 +111,7 @@ def _common_skeleton(
             extra_packages=extra_packages,
             gpu=gpu,
             devices=None,
+            group_add=None,
             external_networks=[],
         ),
         limit_network=NetworkConfig(

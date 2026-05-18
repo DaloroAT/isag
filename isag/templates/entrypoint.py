@@ -25,7 +25,7 @@ DOMAINS_FILE="/etc/isag/allowed-domains.txt"
 # run. Chown the bind-mount targets so the runtime user can write into them.
 # /home/$RUN_AS_USER itself stays image-default (created by useradd) and is
 # intentionally not bind-mounted, so vendors can't see each other's state.
-chown "$RUN_AS_USER:$RUN_AS_USER" \
+chown "$RUN_AS_USER:" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
 
@@ -159,7 +159,7 @@ set -Eeuo pipefail
 
 # Bind-mount sources may be root-owned if docker auto-created them on a prior
 # run. Chown the bind-mount targets so the runtime user can write into them.
-chown "$RUN_AS_USER:$RUN_AS_USER" \
+chown "$RUN_AS_USER:" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
 

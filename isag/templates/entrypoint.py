@@ -29,6 +29,22 @@ chown "$RUN_AS_USER:" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
 
+# Docker Compose `group_add` grants supplementary GIDs to this root
+# entrypoint process, but gosu/sshd rebuild the runtime user's groups from
+# /etc/group. Mirror those host-provided GIDs into the runtime user so device
+# access such as /dev/dri render nodes survives the privilege drop.
+while read -r gid; do
+    [[ "$gid" == "0" ]] && continue
+    group_entry="$(getent group "$gid" || true)"
+    if [[ -z "$group_entry" ]]; then
+        group_name="hostgid_$gid"
+        groupadd --gid "$gid" "$group_name"
+    else
+        group_name="${group_entry%%:*}"
+    fi
+    usermod -aG "$group_name" "$RUN_AS_USER"
+done < <(awk '/^Groups:/ {for (i = 2; i <= NF; i++) print $i}' /proc/self/status)
+
 # sshd reads /etc/isag/authorized_keys directly (AuthorizedKeysFile in the
 # sshd drop-in), so the host's id_ed25519.pub bind mount is the live source
 # of truth — regenerating the keypair on host immediately takes effect with
@@ -162,6 +178,22 @@ set -Eeuo pipefail
 chown "$RUN_AS_USER:" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
+
+# Docker Compose `group_add` grants supplementary GIDs to this root
+# entrypoint process, but gosu/sshd rebuild the runtime user's groups from
+# /etc/group. Mirror those host-provided GIDs into the runtime user so device
+# access such as /dev/dri render nodes survives the privilege drop.
+while read -r gid; do
+    [[ "$gid" == "0" ]] && continue
+    group_entry="$(getent group "$gid" || true)"
+    if [[ -z "$group_entry" ]]; then
+        group_name="hostgid_$gid"
+        groupadd --gid "$gid" "$group_name"
+    else
+        group_name="${group_entry%%:*}"
+    fi
+    usermod -aG "$group_name" "$RUN_AS_USER"
+done < <(awk '/^Groups:/ {for (i = 2; i <= NF; i++) print $i}' /proc/self/status)
 
 # sshd reads /etc/isag/authorized_keys directly (AuthorizedKeysFile in the
 # sshd drop-in) — the bind mount is the live source. Launch on 127.0.0.1:22

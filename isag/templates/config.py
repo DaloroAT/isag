@@ -110,6 +110,7 @@ def _common_skeleton(
             host_cache_dir=Path("~/isag-cache"),
             extra_packages=extra_packages,
             gpu=gpu,
+            devices=None,
             external_networks=[],
         ),
         limit_network=NetworkConfig(

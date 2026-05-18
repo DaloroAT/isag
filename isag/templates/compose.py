@@ -235,6 +235,12 @@ def render_compose(
         service["cap_add"] = ["NET_ADMIN"]
         service["dns"] = list(config.limit_network.dns)
 
+    if config.container.devices:
+        service["devices"] = [
+            device.to_compose()
+            for device in config.container.devices
+        ]
+
     if config.container.external_networks:
         # Declaring `networks:` on a service stops compose's auto-attach to
         # the project default network. Append "default" so cross-service

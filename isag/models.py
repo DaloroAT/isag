@@ -102,6 +102,58 @@ class Mount(BaseModel):
         return f"{self.host}:{self.container}:{self.mode}"
 
 
+# --- Device mapping ----------------------------------------------------------
+
+class DeviceMapping(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    host: Path
+    container: Path
+    permissions: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_shorthand(cls, v):
+        if isinstance(v, str):
+            parts = v.split(":")
+            if len(parts) not in {2, 3}:
+                raise ValueError(
+                    f"device must be 'host:container[:permissions]', got {v!r}"
+                )
+            host, container, *rest = parts
+            return {
+                "host": host,
+                "container": container,
+                "permissions": rest[0] if rest else None,
+            }
+        return v
+
+    @field_validator("host", "container")
+    @classmethod
+    def _paths_absolute(cls, v: Path) -> Path:
+        if not v.is_absolute():
+            raise ValueError(f"device path must be absolute: {v}")
+        return v
+
+    @field_validator("permissions")
+    @classmethod
+    def _validate_permissions(cls, v: str | None) -> str | None:
+        if v is not None and not re.fullmatch(r"[rwm]+", v):
+            raise ValueError(
+                "device permissions must contain only 'r', 'w', and 'm'"
+            )
+        return v
+
+    def to_compose(self) -> str:
+        if self.permissions is None:
+            return f"{self.host}:{self.container}"
+        return f"{self.host}:{self.container}:{self.permissions}"
+
+    @model_serializer
+    def _to_shorthand(self) -> str:
+        return self.to_compose()
+
+
 # --- Exclude -----------------------------------------------------------------
 
 class ExcludeConfig(BaseModel):
@@ -172,6 +224,7 @@ class ContainerConfig(BaseModel):
     host_cache_dir: Path
     extra_packages: list[str]
     gpu: bool
+    devices: list[DeviceMapping] | None
     external_networks: list[str]
 
     @field_validator("name")

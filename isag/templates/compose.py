@@ -116,6 +116,12 @@ def render_compose(
 ) -> str:
     import yaml
 
+    # uid/gid are resolved to concrete ints by `_resolve_identity` during
+    # materialization before this runs; guard so a direct/test call with
+    # unresolved None fails loudly instead of emitting `USER_UID=None`.
+    assert config.container.uid is not None and config.container.gid is not None, \
+        "render_compose requires resolved container uid/gid"
+
     cache_target = config.container.cache_target
     # Vendor segment lives on both sides of the mount: flipping `agent.vendor`
     # in the YAML changes the host subdirectory and the in-container target
@@ -219,6 +225,8 @@ def render_compose(
                 "AGENT_PACKAGE": config.agent.package,
                 "AGENT_CLI_VERSION": config.agent.cli_version,
                 "USER_NAME": config.container.user,
+                "USER_UID": str(config.container.uid),
+                "USER_GID": str(config.container.gid),
             },
         },
         "image": f"{config.container.name}:{yaml_id(yaml_path)}",

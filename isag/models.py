@@ -221,6 +221,8 @@ class ContainerConfig(BaseModel):
     base_image: str
     python: str
     user: str
+    uid: int | None = None
+    gid: int | None = None
     host_cache_dir: Path
     extra_packages: list[str]
     gpu: bool
@@ -316,6 +318,19 @@ class ContainerConfig(BaseModel):
         if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", v):
             raise ValueError(
                 f"container.user must be a valid POSIX username, got {v!r}"
+            )
+        return v
+
+    @field_validator("uid", "gid")
+    @classmethod
+    def _validate_id(cls, v: int | None, info) -> int | None:
+        # None means "resolve to the host user's id at materialization".
+        if v is None:
+            return v
+        max_id = 2**32 - 2
+        if not (1 <= v <= max_id):
+            raise ValueError(
+                f"container.{info.field_name} must be between 1 and {max_id}, got {v}"
             )
         return v
 

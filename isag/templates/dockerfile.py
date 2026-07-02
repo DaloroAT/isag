@@ -76,32 +76,37 @@ ADD https://registry.npmjs.org/${{AGENT_PACKAGE}}/${{AGENT_CLI_VERSION}} /tmp/ag
 RUN npm install -g ${{AGENT_PACKAGE}}@${{AGENT_CLI_VERSION}} \\
     && rm /tmp/agent-version.json
 
-# Runtime user. Preserve base-image users, even when they already own UID 1000.
+# Runtime user, created at the host user's UID/GID (passed as build args so
+# bind-mounted files stay writable and sshd's StrictModes accepts the
+# host-owned authorized_keys). --non-unique tolerates a UID/GID that already
+# exists in the base image; --no-log-init stops useradd writing a sparse
+# /var/log/lastlog+/var/log/faillog record at offset UID*recsize, which for a
+# large UID would balloon the image layer by gigabytes.
 # -p '*' sets the shadow password to a literal '*' — still unloginable via
 # password (not a valid hash), but not "locked". useradd's default is '!',
 # which sshd's allowed_user() rejects as "account is locked" before it ever
 # checks the pubkey, regardless of UsePAM/PubkeyAuthentication settings.
 ARG USER_NAME
+ARG USER_UID
+ARG USER_GID
 ENV RUN_AS_USER=${{USER_NAME}}
 ENV HOME=/home/${{USER_NAME}}
 RUN set -eu; \\
     if id -u "${{USER_NAME}}" >/dev/null 2>&1; then \\
-        if [ "$(id -u "${{USER_NAME}}")" != "1000" ]; then \\
-            echo "user ${{USER_NAME}} already exists with UID $(id -u "${{USER_NAME}}"), expected 1000" >&2; \\
+        existing_uid="$(id -u "${{USER_NAME}}")"; \\
+        if [ "$existing_uid" != "${{USER_UID}}" ]; then \\
+            echo "user ${{USER_NAME}} already exists with UID $existing_uid, expected ${{USER_UID}}; set container.uid to match or pick another container.user" >&2; \\
             exit 1; \\
         fi; \\
         usermod -p '*' -d "/home/${{USER_NAME}}" -s /bin/bash "${{USER_NAME}}"; \\
         mkdir -p "/home/${{USER_NAME}}"; \\
     else \\
-        if getent group "${{USER_NAME}}" >/dev/null; then \\
-            group_arg="-g ${{USER_NAME}}"; \\
-        elif getent group 1000 >/dev/null; then \\
-            group_arg="-g 1000"; \\
-        else \\
-            groupadd --gid 1000 "${{USER_NAME}}"; \\
-            group_arg="-g ${{USER_NAME}}"; \\
+        if ! getent group "${{USER_GID}}" >/dev/null; then \\
+            group_name="${{USER_NAME}}"; \\
+            getent group "${{USER_NAME}}" >/dev/null && group_name="grp_${{USER_GID}}"; \\
+            groupadd --gid "${{USER_GID}}" "$group_name"; \\
         fi; \\
-        useradd --create-home --home-dir "/home/${{USER_NAME}}" --uid 1000 --non-unique $group_arg --shell /bin/bash -p '*' "${{USER_NAME}}"; \\
+        useradd --no-log-init --create-home --home-dir "/home/${{USER_NAME}}" --uid "${{USER_UID}}" --non-unique --gid "${{USER_GID}}" --shell /bin/bash -p '*' "${{USER_NAME}}"; \\
     fi; \\
     chown "${{USER_NAME}}:" "/home/${{USER_NAME}}"
 

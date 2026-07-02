@@ -15,7 +15,6 @@ from isag.models import (
 
 _HEADER = """\
 # Sandbox configuration. Edit values, then `isag run`.
-# All fields are required; the YAML file is the single source of truth.
 # Paths starting with ~ are expanded at build/run time.
 # Vendor-required domains are added automatically based on agent.vendor.
 
@@ -107,6 +106,8 @@ def _common_skeleton(
             ),
             python="3.12",
             user="isag",
+            uid=None,
+            gid=None,
             host_cache_dir=Path("~/isag-cache"),
             extra_packages=extra_packages,
             gpu=gpu,

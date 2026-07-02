@@ -140,7 +140,36 @@ def _ssh_dir(outdir: Path) -> Path:
     return outdir / "ssh"
 
 
+def _resolve_identity(cfg: SandboxConfig) -> SandboxConfig:
+    """Fill container.uid/gid from the invoking user when left unset.
+
+    None means "match whoever runs `isag run`". Aligning the container
+    user's uid/gid with the host user makes the bind-mounted project
+    writable and lets sshd's StrictModes accept /etc/isag/authorized_keys
+    (owned by the host uid).
+    """
+    c = cfg.container
+    if c.uid is not None and c.gid is not None:
+        return cfg
+    if not hasattr(os, "getuid"):
+        # Windows Docker has no host-uid concept and remaps bind-mount
+        # ownership itself; preserve the historical 1000 default there.
+        uid = c.uid if c.uid is not None else 1000
+        gid = c.gid if c.gid is not None else 1000
+    else:
+        uid = c.uid if c.uid is not None else os.getuid()
+        gid = c.gid if c.gid is not None else os.getgid()
+        if uid == 0 or gid == 0:
+            raise click.ClickException(
+                "isag resolved a root uid/gid (0); run isag as a non-root user "
+                "or set container.uid/container.gid explicitly in isag.yaml."
+            )
+    object.__setattr__(cfg, "container", c.model_copy(update={"uid": uid, "gid": gid}))
+    return cfg
+
+
 def _materialize(cfg: SandboxConfig, yaml_path: Path) -> Path:
+    cfg = _resolve_identity(cfg)
     outdir = _cache_dir_for(yaml_path)
     outdir.mkdir(parents=True, exist_ok=True)
     _ensure_host_dirs(cfg)

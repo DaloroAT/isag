@@ -37,6 +37,7 @@ RUN printf '%s\\n' \\
         'PasswordAuthentication no' \\
         'PermitRootLogin no' \\
         'PubkeyAuthentication yes' \\
+        'StrictModes no' \\
         'UsePAM no' \\
         'PrintMotd no' \\
         'HostKey /etc/ssh/host_keys/ssh_host_ed25519_key' \\

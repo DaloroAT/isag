@@ -67,8 +67,6 @@ isag ssh -R 5037:localhost:5037
 project: ~/code/my-project:/workspace/project:rw   # use :ro for analysis-only runs
 agent:
   vendor: claude                                   # claude or codex
-  cli_flags: null                                  # extra arguments, e.g. ["--model", "my-model"]
-  share_vendor_homes: false                        # true also mounts existing other vendor folders read-write
   host_home: ~/agents                              # vendors persist here as host_home/.claude, host_home/.codex; set to ~ to share history + credentials with your host install
 container:
   python: 3.14                                     # container system-wide Python

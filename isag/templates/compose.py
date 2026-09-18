@@ -1,6 +1,8 @@
 """Generate a docker-compose.yaml from a SandboxConfig."""
 from __future__ import annotations
 
+import getpass
+import re
 from pathlib import Path
 
 from isag.models import AgentConfig, Mount, SandboxConfig, Vendor, VENDOR_HOME_ENV
@@ -218,6 +220,8 @@ def render_compose(
     if config.env is not None:
         environment.update(config.env)
 
+    # Keep host usernames valid in Docker tags, leaving room for vendor/hash.
+    host_user = re.sub(r"[^a-zA-Z0-9_.-]", "-", getpass.getuser()).lstrip(".-")[:100] or "user"
     service: dict = {
         "build": {
             "context": ".",
@@ -225,6 +229,7 @@ def render_compose(
             "args": {
                 "BASE_IMAGE": config.container.base_image,
                 "PYTHON_VERSION": config.container.python,
+                "AGENT_VENDOR": config.agent.vendor.value,
                 "AGENT_PACKAGE": config.agent.package,
                 "AGENT_CLI_VERSION": config.agent.cli_version,
                 "USER_NAME": config.container.user,
@@ -232,7 +237,7 @@ def render_compose(
                 "USER_GID": str(config.container.gid),
             },
         },
-        "image": f"{config.container.name}:{yaml_id(yaml_path)}",
+        "image": f"{config.container.name}:{host_user}-{config.agent.vendor.value}-{yaml_id(yaml_path)}",
         "init": True,
         "tty": True,
         "stdin_open": True,

@@ -71,10 +71,13 @@ RUN curl -fsSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py \\
 {extra_packages_block}
 
 # Agent CLI. ADD line cache-busts: 404 on bad versions; JSON changes when 'latest' moves.
+ARG AGENT_VENDOR
 ARG AGENT_PACKAGE
 ARG AGENT_CLI_VERSION
 ADD https://registry.npmjs.org/${{AGENT_PACKAGE}}/${{AGENT_CLI_VERSION}} /tmp/agent-version.json
-RUN npm install -g ${{AGENT_PACKAGE}}@${{AGENT_CLI_VERSION}} \\
+RUN npm install -g --include=optional --ignore-scripts=false --foreground-scripts \\
+        ${{AGENT_PACKAGE}}@${{AGENT_CLI_VERSION}} \\
+    && "${{AGENT_VENDOR}}" --version \\
     && rm /tmp/agent-version.json
 
 # Runtime user, created at the host user's UID/GID (passed as build args so

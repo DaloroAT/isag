@@ -185,6 +185,8 @@ class AgentConfig(BaseModel):
 
     vendor: Vendor
     yolo_mode: bool
+    cli_flags: list[str] | None
+    share_vendor_homes: bool
     host_home: Path
     cli_version: str
 

@@ -67,6 +67,8 @@ isag ssh -R 5037:localhost:5037
 project: ~/code/my-project:/workspace/project:rw   # use :ro for analysis-only runs
 agent:
   vendor: claude                                   # claude or codex
+  cli_flags: null                                  # extra arguments, e.g. ["--model", "my-model"]
+  share_vendor_homes: false                        # true also mounts existing other vendor folders read-write
   host_home: ~/agents                              # vendors persist here as host_home/.claude, host_home/.codex; set to ~ to share history + credentials with your host install
 container:
   python: 3.14                                     # container system-wide Python
@@ -87,6 +89,8 @@ exclude:                                           # hide paths inside any mount
     - .git
 ```
 
+- `agent.cli_flags` and `agent.share_vendor_homes` are required; add both to existing
+configs. Flags are appended after the YOLO flag; `null` or `[]` adds nothing.
 - Set `limit_network: null` to turn the firewall off entirely. Useful on
 trusted networks; not the default for a reason.
 - Excluded paths are host paths; if they fall under `project` or any `mounts`

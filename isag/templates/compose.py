@@ -18,6 +18,7 @@ def _agent_command(agent: AgentConfig) -> list[str]:
     cmd = [agent.vendor.value]
     if agent.yolo_mode:
         cmd.append(_YOLO_FLAGS[agent.vendor])
+    cmd.extend(agent.cli_flags or [])
     return cmd
 
 
@@ -123,19 +124,21 @@ def render_compose(
         "render_compose requires resolved container uid/gid"
 
     cache_target = config.container.cache_target
-    # Vendor segment lives on both sides of the mount: flipping `agent.vendor`
-    # in the YAML changes the host subdirectory and the in-container target
-    # in lockstep, giving true cross-vendor isolation under one host_home.
+    # Always mount the selected vendor; optionally share existing vendor homes.
+    host_home = config.resolve_path(config.agent.host_home)
     vendor_segment = f".{config.agent.vendor.value}"
-    vendor_home_source = config.resolve_path(config.agent.host_home) / vendor_segment
     vendor_home_target = f"{config.container.home}/{vendor_segment}"
 
     volumes: list[dict] = [_project_volume_entry(config)]
-    volumes.append({
-        "type": "bind",
-        "source": str(vendor_home_source),
-        "target": vendor_home_target,
-    })
+    for vendor in Vendor:
+        source = host_home / f".{vendor.value}"
+        if vendor != config.agent.vendor and (not config.agent.share_vendor_homes or not source.is_dir()):
+            continue
+        volumes.append({
+            "type": "bind",
+            "source": str(source),
+            "target": f"{config.container.home}/.{vendor.value}",
+        })
     volumes.append({
         "type": "bind",
         "source": str(config.resolve_path(config.container.host_cache_dir)),

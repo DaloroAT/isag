@@ -96,6 +96,8 @@ def _common_skeleton(
         agent=AgentConfig(
             vendor=Vendor.CLAUDE,
             yolo_mode=True,
+            cli_flags=None,
+            share_vendor_homes=False,
             host_home=Path("~/agents"),
             cli_version="latest",
         ),

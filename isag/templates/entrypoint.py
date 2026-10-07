@@ -29,6 +29,16 @@ chown "$RUN_AS_USER:" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
 
+# Docker creates the private Claude runtime volume and any missing parents
+# as root. Prepare them before SSH can start a remote helper, including
+# when Claude's home is shared into a different vendor's container.
+# Do not recursively change ownership of shared credentials or history.
+claude_home="/home/$RUN_AS_USER/.claude"
+if [[ -d "$claude_home/remote/run" ]]; then
+    chown "$RUN_AS_USER:" "$claude_home" "$claude_home/remote" "$claude_home/remote/run"
+    chmod 0700 "$claude_home/remote/run"
+fi
+
 # Docker Compose `group_add` grants supplementary GIDs to this root
 # entrypoint process, but gosu/sshd rebuild the runtime user's groups from
 # /etc/group. Mirror those host-provided GIDs into the runtime user so device
@@ -178,6 +188,16 @@ set -Eeuo pipefail
 chown "$RUN_AS_USER:" \
     "/home/$RUN_AS_USER/.$AGENT_VENDOR" \
     "/home/$RUN_AS_USER/.cache"
+
+# Docker creates the private Claude runtime volume and any missing parents
+# as root. Prepare them before SSH can start a remote helper, including
+# when Claude's home is shared into a different vendor's container.
+# Do not recursively change ownership of shared credentials or history.
+claude_home="/home/$RUN_AS_USER/.claude"
+if [[ -d "$claude_home/remote/run" ]]; then
+    chown "$RUN_AS_USER:" "$claude_home" "$claude_home/remote" "$claude_home/remote/run"
+    chmod 0700 "$claude_home/remote/run"
+fi
 
 # Docker Compose `group_add` grants supplementary GIDs to this root
 # entrypoint process, but gosu/sshd rebuild the runtime user's groups from

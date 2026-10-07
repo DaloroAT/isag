@@ -178,6 +178,18 @@ def render_compose(
 
     volumes.extend(_volume_entry(m, config) for m in (config.mounts or []))
 
+    # Claude's remote helper uses filesystem sockets under remote/run.
+    # Sharing those sockets makes a second container reuse the first one's
+    # helper and filesystem. Keep the rest of the Claude home shared, but
+    # give every container (even runs of the same project) a fresh runtime.
+    claude_home = f"{config.container.home}/.claude"
+    if any(v["target"] == claude_home for v in volumes):
+        volumes.append({
+            "type": "volume",
+            "target": f"{claude_home}/remote/run",
+            "volume": {"nocopy": True},
+        })
+
     # If the source yaml lives under the project tree, overlay it as
     # read-only over its own path inside the container. The agent can read
     # the policy that constrains it but cannot edit it (kernel-enforced via

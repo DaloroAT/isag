@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import posixpath
 import re
 from enum import Enum
 from pathlib import Path
@@ -95,7 +96,9 @@ class Mount(BaseModel):
     def _container_absolute(cls, v: Path) -> Path:
         if not v.is_absolute():
             raise ValueError(f"container path must be absolute: {v}")
-        return v
+        # Container paths are lexical POSIX paths, not paths to resolve on
+        # the host. Normalize aliases before duplicate/reserved-path checks.
+        return Path(posixpath.normpath("/" + v.as_posix().lstrip("/")))
 
     @model_serializer
     def _to_shorthand(self) -> str:
@@ -401,11 +404,18 @@ class SandboxConfig(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def _check_unique_targets(self) -> "SandboxConfig":
+    def _check_mount_targets(self) -> "SandboxConfig":
         mounts = self.mounts or []
         targets = [self.project.container] + [m.container for m in mounts]
+        claude_runtime = Path(self.container.home) / ".claude/remote/run"
         seen: set[Path] = set()
         for t in targets:
+            if t.is_relative_to(claude_runtime):
+                raise ValueError(
+                    f"mount target {t} is reserved: {claude_runtime} and its "
+                    "descendants must not be mounted. isag isolates this "
+                    "runtime directory automatically per container. Remove this mount."
+                )
             if t in seen:
                 raise ValueError(f"duplicate mount target: {t}")
             seen.add(t)
